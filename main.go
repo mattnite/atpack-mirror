@@ -150,6 +150,8 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to get config env vars")
 	}
 
+	log.Info().Interface("config", config).Msg("got config")
+
 	level, err := zerolog.ParseLevel(config.LogLevel)
 	if err != nil {
 		log.Fatal().Err(err).Str("level", config.LogLevel).Msg("Failed to parse log level")
