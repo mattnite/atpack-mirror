@@ -51,7 +51,7 @@ jobs:
         version: 1.9.1
     - name: Deploy to nomad
       env:
-        LOG_LEVEL: info
+        LOG_LEVEL: debug
         DOMAIN: atpack.microzig.tech
         IMAGE: ${{ env.IMAGE_TAG }}@${{ env.DIGEST }}
         LOKI_URL: ${{ secrets.LOKI_URL }}
