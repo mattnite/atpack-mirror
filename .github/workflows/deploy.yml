@@ -50,7 +50,7 @@ jobs:
       uses: hashicorp/setup-nomad@main
       with:
         version: 1.9.1
-    - name: Deploy to Test Environment
+    - name: Deploy to nomad
       env:
         LOG_LEVEL: info
         DOMAIN: atpack.microzig.tech
