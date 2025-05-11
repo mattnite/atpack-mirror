@@ -116,36 +116,30 @@ func (m *Mirror) getAtpack(atpackName string) ([]byte, error) {
 	return body, nil
 }
 
-func getAtpackHandler(mirror *Mirror) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		log.Printf("path: %s", path)
-
-		// Check if path has more than one segment
-		if strings.Contains(path, "/") {
-			http.NotFound(w, r)
-			return
-		}
+func getAtpackHandler(mirror *Mirror) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		atpack := c.Param("atpack")
 
 		// Check if file has .atpack extension
-		if !strings.HasSuffix(path, ".atpack") {
-			http.NotFound(w, r)
+		if !strings.HasSuffix(atpack, ".atpack") {
+			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}
 
-		log.Printf("atpack: %s", path)
-		body, err := mirror.getAtpack(path)
+		log.Info().Str("atpack", atpack).Msg("Fetching atpack")
+		body, err := mirror.getAtpack(atpack)
 		if err != nil {
 			if err.Error() == "not found" {
-				http.NotFound(w, r)
+				c.AbortWithStatus(http.StatusNotFound)
 			} else {
-				http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+				c.AbortWithStatus(http.StatusServiceUnavailable)
 			}
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/zip")
-		w.Write(body)
+		c.Header("Content-Type", "application/zip")
+		c.Data(http.StatusOK, "application/zip", body)
+
 	}
 }
 
@@ -168,11 +162,10 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize mirror")
 	}
 
-	_ = mirror
-
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(ZerologLogger("mirror"))
+	router.GET("/:atpack", getAtpackHandler(mirror))
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 
