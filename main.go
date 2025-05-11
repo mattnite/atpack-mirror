@@ -181,25 +181,29 @@ func main() {
 		MinVersion:     tls.VersionTLS12,
 	}
 
-	s := &http.Server{
+	httpServer := &http.Server{
+		Addr:    ":80",
+		Handler: m.HTTPHandler(http.HandlerFunc(redirectToHTTPS)),
+	}
+
+	httpsServer := &http.Server{
 		Addr:      addr,
 		Handler:   router,
 		TLSConfig: tlsConfig,
 	}
 
-	// Start HTTP Server on port 80 for letsencrypt challenges
+	// Start HTTP server in a goroutine
 	go func() {
-		log.Info().Msg("Starting TCP server on :80")
-		err := http.ListenAndServe(":80", m.HTTPHandler(nil))
-		if err != nil {
+		log.Info().Msg("Starting HTTP server on :80")
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("HTTP server error")
 		}
 	}()
 
-	log.Info().Str("addr", addr).Msg("Starting TCP server")
-	err = s.ListenAndServeTLS("", "")
-	if err != nil {
-		log.Fatal().Err(err).Msg("HTTP server error")
+	// Start HTTPS server
+	log.Info().Str("addr", httpsServer.Addr).Msg("Starting HTTPS server")
+	if err := httpsServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+		log.Fatal().Err(err).Msg("HTTPS server error")
 	}
 }
 
@@ -230,4 +234,12 @@ func ZerologLogger(handler string) gin.HandlerFunc {
 			Dur("latency", latency).
 			Msg("request completed")
 	}
+}
+
+func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+	target := "https://" + r.Host + r.URL.Path
+	if len(r.URL.RawQuery) > 0 {
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
