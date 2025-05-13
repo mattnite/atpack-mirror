@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -27,7 +27,6 @@ type Config struct {
 	LogLevel  string `env:"LOG_LEVEL"`
 	Domain    string `env:"DOMAIN"`
 	Host      string `env:"HOST"`
-	Port      uint16 `env:"PORT"`
 }
 
 type Mirror struct {
@@ -169,8 +168,6 @@ func main() {
 	router.Use(ZerologLogger("mirror"))
 	router.GET("/:atpack", getAtpackHandler(mirror))
 
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-
 	log.Info().Str("domain", config.Domain).Msg("setting whitelist")
 	m := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
@@ -178,35 +175,9 @@ func main() {
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 	}
 
-	tlsConfig := &tls.Config{
-		GetCertificate: m.GetCertificate,
-		MinVersion:     tls.VersionTLS12,
-	}
+	err = autotls.RunWithManager(router, m)
+	log.Fatal().Err(err).Msg("Failed RunWithManager>()")
 
-	httpServer := &http.Server{
-		Addr:    ":80",
-		Handler: m.HTTPHandler(http.HandlerFunc(redirectToHTTPS)),
-	}
-
-	httpsServer := &http.Server{
-		Addr:      addr,
-		Handler:   router,
-		TLSConfig: tlsConfig,
-	}
-
-	// Start HTTP server in a goroutine
-	go func() {
-		log.Info().Msg("Starting HTTP server on :80")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("HTTP server error")
-		}
-	}()
-
-	// Start HTTPS server
-	log.Info().Str("addr", httpsServer.Addr).Msg("Starting HTTPS server")
-	if err := httpsServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-		log.Fatal().Err(err).Msg("HTTPS server error")
-	}
 }
 
 func ZerologLogger(handler string) gin.HandlerFunc {
@@ -236,12 +207,4 @@ func ZerologLogger(handler string) gin.HandlerFunc {
 			Dur("latency", latency).
 			Msg("request completed")
 	}
-}
-
-func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
-	target := "https://" + r.Host + r.URL.Path
-	if len(r.URL.RawQuery) > 0 {
-		target += "?" + r.URL.RawQuery
-	}
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
