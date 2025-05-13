@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sethvargo/go-envconfig"
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -178,6 +179,11 @@ func main() {
 	httpClient := &http.Client{
 		Transport: &loggingTransport{http.DefaultTransport},
 		Timeout:   30 * time.Second,
+	}
+
+	m.Client = &acme.Client{
+		DirectoryURL: "", // Leave empty for Let's Encrypt production
+		UserAgent:    "your-app-name/1.0",
 	}
 
 	m.Client.HTTPClient = httpClient
