@@ -175,6 +175,13 @@ func main() {
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 	}
 
+	httpClient := &http.Client{
+		Transport: &loggingTransport{http.DefaultTransport},
+		Timeout:   30 * time.Second,
+	}
+
+	m.Client.HTTPClient = httpClient
+
 	err = autotls.RunWithManager(router, m)
 	log.Fatal().Err(err).Msg("Failed RunWithManager>()")
 
@@ -207,4 +214,29 @@ func ZerologLogger(handler string) gin.HandlerFunc {
 			Dur("latency", latency).
 			Msg("request completed")
 	}
+}
+
+type loggingTransport struct {
+	rt http.RoundTripper
+}
+
+func (lt *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	log.Info().
+		Str("url", req.URL.String()).
+		Str("method", req.Method).
+		Msg("ACME HTTP request")
+
+	resp, err := lt.rt.RoundTrip(req)
+
+	if err != nil {
+		log.Error().Err(err).Msg("ACME HTTP error")
+		return resp, err
+	}
+
+	log.Info().
+		Int("status", resp.StatusCode).
+		Str("url", req.URL.String()).
+		Msg("ACME HTTP response")
+
+	return resp, err
 }
